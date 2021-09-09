@@ -105,6 +105,8 @@ class NotesHandler {
       await this._service.verifyNoteOwner(id, credentialId);
       await this._service.editNoteById(id, { title, body, tags });
 
+      await this._service.verifyNoteAccess(id, credentialId);
+
       return {
         status: 'success',
         message: 'Catatan berhasil diperbarui',

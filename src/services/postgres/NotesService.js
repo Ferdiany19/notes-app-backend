@@ -2,11 +2,13 @@ const { nanoid } = require('nanoid');
 const { Pool } = require('pg');
 const { InvariantError, NotfoundError } = require('../../exceptions/InvariantError');
 const AuthorizationError = require('../../exceptions/AuthorizationError');
+
 const mapDBToModel = require('../../utils');
 
 class NotesService {
-  constructor() {
+  constructor(collaborationServices) {
     this._pool = new Pool();
+    this._collaborationService = collaborationServices;
   }
 
   async addNote({ title, body, tags, owner }) {
@@ -40,8 +42,8 @@ class NotesService {
 
   async getNoteById(id) {
     const query = {
-      text: 'SELECT * FROM notes WHERE id = $1',
-      values: [id],
+      text: `SELECT notes.* FROM notes LEFT JOIN collaborations ON collaborations.note_id = notes.id WHERE notes.owner = $1 OR collaborations.user_id = $1 GROUP BY notes.id`,
+      values: [owner],
     };
     const result = await this._pool.query(query);
 
@@ -95,6 +97,22 @@ class NotesService {
 
     if (note.owner != owner) {
       throw new AuthorizationError('Anda tidak dapat mengakses resource ini.');
+    }
+  }
+
+  async verifyNoteAccess(noteId, userId) {
+    try {
+      await this.verifyNoteOwner(noteId, userId);
+    } catch (error) {
+      if (error instanceof NotfoundError) {
+        throw error;
+      }
+
+      try {
+        await this._collaborationService.verifyCollaborator(noteId, userId);
+      } catch {
+        throw error;
+      }
     }
   }
 }
